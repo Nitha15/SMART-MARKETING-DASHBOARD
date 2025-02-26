@@ -1,54 +1,81 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-from flask import Flask, render_template
+import smtplib
+import tweepy
 import schedule
 import time
+import pandas as pd
+import matplotlib.pyplot as plt
+from email.mime.text import MIMEText
 
-# --- 1. Flask App Setup ---
-app = Flask(__name__)
+# --- 1. Setup Email Campaign ---
+def send_email(recipient, subject, message):
+    sender = "your_email@gmail.com"
+    password = "your_email_password"
+    
+    msg = MIMEText(message)
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = recipient
 
-# --- 2. Sample Data (You can replace this with real data from your campaigns) ---
-data = {
-    'Campaign': ['Email', 'Social Media', 'SEO', 'PPC'],
-    'Conversions': [120, 150, 80, 200],
-    'Spend ($)': [500, 600, 400, 1000]
-}
-df = pd.DataFrame(data)
+    try:
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(sender, password)
+        server.sendmail(sender, recipient, msg.as_string())
+        server.quit()
+        print(f"Email sent to {recipient}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
 
-# --- 3. Data Analysis: Add calculated columns ---
-df['CPC'] = df['Spend ($)'] / df['Conversions']  # Cost per Conversion (CPC)
+# --- 2. Setup Twitter Post ---
+def post_tweet(content):
+    consumer_key = "your_consumer_key"
+    consumer_secret = "your_consumer_secret"
+    access_token = "your_access_token"
+    access_token_secret = "your_access_token_secret"
+    
+    auth = tweepy.OAuth1UserHandler(consumer_key, consumer_secret, access_token, access_token_secret)
+    api = tweepy.API(auth)
 
-# --- 4. Visualize Data ---
+    try:
+        api.update_status(content)
+        print("Tweet posted!")
+    except Exception as e:
+        print(f"Failed to post tweet: {e}")
+
+# --- 3. Analytics - Tracking Campaign Performance ---
 def generate_analytics_report():
+    data = {'Campaign': ['Email', 'Social Media', 'SEO', 'PPC'],
+            'Conversions': [120, 150, 80, 200],
+            'Spend ($)': [500, 600, 400, 1000]}
+    df = pd.DataFrame(data)
+
+    df['CPC'] = df['Spend ($)'] / df['Conversions']  # Cost per conversion (CPC)
+    
+    print("Campaign Analytics Report:")
+    print(df)
+
+    # Plot Conversion Bar Chart
     df.plot(kind='bar', x='Campaign', y='Conversions', title="Campaign Conversion Rates")
     plt.xlabel('Campaign')
     plt.ylabel('Conversions')
-    plt.tight_layout()
-    plt.savefig('static/conversion_report.png')  # Save the chart for web display
+    plt.show()
 
-# --- 5. Flask Routes ---
-@app.route('/')
-def dashboard():
-    # Generate report (run every time the dashboard is visited)
-    generate_analytics_report()
-    return render_template('dashboard.html', tables=[df.to_html(classes='data')], titles=df.columns.values)
-
-@app.route('/analytics')
-def analytics():
-    # Display the saved analytics image
-    return render_template('analytics.html')
-
-# --- 6. Schedule Reports (Example of scheduling tasks) ---
-def schedule_reports():
-    # Scheduling analytics report generation every day at 10:00 AM
-    schedule.every().day.at("10:00").do(generate_analytics_report)
+# --- 4. Task Scheduling ---
+def schedule_tasks():
+    # Schedule email campaign to run at a specific time
+    schedule.every().day.at("10:00").do(send_email, recipient="recipient@example.com", 
+                                         subject="Marketing Campaign", message="Check out our latest offer!")
     
+    # Schedule social media post at a specific time
+    schedule.every().day.at("12:00").do(post_tweet, content="Here's our latest product! #NewProduct")
+    
+    # Schedule campaign analytics report to be generated weekly
+    schedule.every().week.at("15:00").do(generate_analytics_report)
+
     while True:
         schedule.run_pending()
         time.sleep(1)
 
-if __name__ == '__main__':
-    # Run the scheduled tasks in a separate thread (you can add threading to make it work in the background)
-    import threading
-    threading.Thread(target=schedule_reports).start()
-    app.run(debug=True)
+# --- Main Execution ---
+if __name__ == "__main__":
+    print("Digital Marketing App Started")
+    schedule_tasks()
